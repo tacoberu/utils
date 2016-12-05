@@ -1,8 +1,8 @@
 <?php
 
 /**
- * This file is part of the Nette Framework (http://nette.org)
- * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
+ * This file is part of the Nette Framework (https://nette.org)
+ * Copyright (c) 2004 David Grudl (https://davidgrudl.com)
  */
 
 namespace Nette\Utils;
@@ -11,9 +11,7 @@ use Nette;
 
 
 /**
- * Validation utilites.
- *
- * @author     David Grudl
+ * Validation utilities.
  */
 class Validators extends Nette\Object
 {
@@ -26,10 +24,10 @@ class Validators extends Nette\Object
 		'number' => NULL, // is_int || is_float,
 		'numeric' => array(__CLASS__, 'isNumeric'),
 		'numericint' => array(__CLASS__, 'isNumericInt'),
-		'string' =>  'is_string',
+		'string' => 'is_string',
 		'unicode' => array(__CLASS__, 'isUnicode'),
 		'array' => 'is_array',
-		'list' => array('Nette\Utils\Arrays', 'isList'),
+		'list' => array(__CLASS__, 'isList'),
 		'object' => 'is_object',
 		'resource' => 'is_resource',
 		'scalar' => 'is_scalar',
@@ -37,6 +35,7 @@ class Validators extends Nette\Object
 		'null' => 'is_null',
 		'email' => array(__CLASS__, 'isEmail'),
 		'url' => array(__CLASS__, 'isUrl'),
+		'uri' => array(__CLASS__, 'isUri'),
 		'none' => array(__CLASS__, 'isNone'),
 		'type' => array(__CLASS__, 'isType'),
 		'identifier' => array(__CLASS__, 'isPhpIdentifier'),
@@ -51,7 +50,7 @@ class Validators extends Nette\Object
 	);
 
 	protected static $counters = array(
-		'string' =>  'strlen',
+		'string' => 'strlen',
 		'unicode' => array('Nette\Utils\Strings', 'length'),
 		'array' => 'count',
 		'list' => 'count',
@@ -95,6 +94,7 @@ class Validators extends Nette\Object
 	 * @param  array
 	 * @param  string  item
 	 * @param  string  expected types separated by pipe
+	 * @param  string
 	 * @return void
 	 */
 	public static function assertField($arr, $field, $expected = NULL, $label = "item '%' in array")
@@ -212,7 +212,7 @@ class Validators extends Nette\Object
 	 */
 	public static function isList($value)
 	{
-		return Arrays::isList($value);
+		return is_array($value) && (!$value || array_keys($value) === range(0, count($value) - 1));
 	}
 
 
@@ -237,25 +237,45 @@ class Validators extends Nette\Object
 	public static function isEmail($value)
 	{
 		$atom = "[-a-z0-9!#$%&'*+/=?^_`{|}~]"; // RFC 5322 unquoted characters in local-part
-		$localPart = "(?:\"(?:[ !\\x23-\\x5B\\x5D-\\x7E]*|\\\\[ -~])+\"|$atom+(?:\\.$atom+)*)"; // quoted or unquoted
 		$alpha = "a-z\x80-\xFF"; // superset of IDN
-		$domain = "[0-9$alpha](?:[-0-9$alpha]{0,61}[0-9$alpha])?"; // RFC 1034 one domain component
-		$topDomain = "[$alpha](?:[-0-9$alpha]{0,17}[$alpha])?";
-		return (bool) preg_match("(^$localPart@(?:$domain\\.)+$topDomain\\z)i", $value);
+		return (bool) preg_match("(^
+			(\"([ !#-[\\]-~]*|\\\\[ -~])+\"|$atom+(\\.$atom+)*)  # quoted or unquoted
+			@
+			([0-9$alpha]([-0-9$alpha]{0,61}[0-9$alpha])?\\.)+    # domain - RFC 1034
+			[$alpha]([-0-9$alpha]{0,17}[$alpha])?                # top domain
+		\\z)ix", $value);
 	}
 
 
 	/**
-	 * Finds whether a string is a valid URL.
+	 * Finds whether a string is a valid http(s) URL.
 	 * @param  string
 	 * @return bool
 	 */
 	public static function isUrl($value)
 	{
 		$alpha = "a-z\x80-\xFF";
-		$domain = "[0-9$alpha](?:[-0-9$alpha]{0,61}[0-9$alpha])?";
-		$topDomain = "[$alpha](?:[-0-9$alpha]{0,17}[$alpha])?";
-		return (bool) preg_match("(^https?://(?:(?:$domain\\.)*$topDomain|\\d{1,3}\.\\d{1,3}\.\\d{1,3}\.\\d{1,3}|\[[0-9a-f:]{3,39}\])(:\\d{1,5})?(/\\S*)?\\z)i", $value);
+		return (bool) preg_match("(^
+			https?://(
+				(([-_0-9$alpha]+\\.)*                       # subdomain
+					[0-9$alpha]([-0-9$alpha]{0,61}[0-9$alpha])?\\.)?  # domain
+					[$alpha]([-0-9$alpha]{0,17}[$alpha])?   # top domain
+				|\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}  # IPv4
+				|\[[0-9a-f:]{3,39}\]                        # IPv6
+			)(:\\d{1,5})?                                   # port
+			(/\\S*)?                                        # path
+		\\z)ix", $value);
+	}
+
+
+	/**
+	 * Finds whether a string is a valid URI according to RFC 1738.
+	 * @param  string
+	 * @return bool
+	 */
+	public static function isUri($value)
+	{
+		return (bool) preg_match('#^[a-z\d+\.-]+:\S+\z#i', $value);
 	}
 
 
@@ -283,8 +303,9 @@ class Validators extends Nette\Object
 
 
 /**
- * The exception that indicates assertion error.
+ * The exception that indicates assertion error. Already tried to move to exceptions.php, but bad namespace and no time
+ * TODO: Delete as soon as possible and change namespaces in whole application, where it is used. And TEST IT!
  */
-class AssertionException extends \Exception
+class AssertionException extends Nette\AssertionException
 {
 }

@@ -1,14 +1,12 @@
 <?php
-
 /**
- * This file is part of the Nette Framework (http://nette.org)
- * Copyright (c) 2004 David Grudl (http://davidgrudl.com)
+ * This file is part of the Nette Framework (https://nette.org)
+ * Copyright (c) 2004 David Grudl (https://davidgrudl.com)
  */
 
 namespace Nette\Utils;
 
 use Nette;
-
 
 /**
  * PHP callable tools.
@@ -17,7 +15,6 @@ use Nette;
  */
 class Callback
 {
-
 	/**
 	 * @param  mixed   class, object, callable
 	 * @param  string  method
@@ -30,16 +27,13 @@ class Callback
 		} elseif ($callable instanceof \Closure) {
 			return $callable;
 		}
-
 		self::check($callable, TRUE);
 		$_callable_ = $callable;
-		return function() use ($_callable_) {
+		return function () use ($_callable_) {
 			Callback::check($_callable_);
 			return call_user_func_array($_callable_, func_get_args());
 		};
 	}
-
-
 	/**
 	 * Invokes callback.
 	 * @return mixed
@@ -49,8 +43,6 @@ class Callback
 		self::check($callable);
 		return call_user_func_array($callable, array_slice(func_get_args(), 1));
 	}
-
-
 	/**
 	 * Invokes callback with an array of parameters.
 	 * @return mixed
@@ -60,8 +52,38 @@ class Callback
 		self::check($callable);
 		return call_user_func_array($callable, $args);
 	}
-
-
+	/**
+	 * Invokes internal PHP function with own error handler.
+	 * @param  string
+	 * @return mixed
+	 * @internal
+	 */
+	public static function invokeSafe($function, array $args, $onError)
+	{
+		$prev = set_error_handler(function ($severity, $message, $file, $line, $context = NULL, $stack = NULL) use ($onError, & $prev, $function) {
+			if ($file === '' && defined('HHVM_VERSION')) { // https://github.com/facebook/hhvm/issues/4625
+				$file = $stack[1]['file'];
+			}
+			if ($file === __FILE__) {
+				$msg = preg_replace("#^$function\(.*?\): #", '', $message);
+				if ($onError($msg, $severity) !== FALSE) {
+					return;
+				}
+			}
+			return $prev ? call_user_func_array($prev, func_get_args()) : FALSE;
+		});
+		try {
+			$res = call_user_func_array($function, $args);
+			restore_error_handler();
+			return $res;
+		} catch (\Throwable $e) {
+			restore_error_handler();
+			throw $e;
+		} catch (\Exception $e) {
+			restore_error_handler();
+			throw $e;
+		}
+	}
 	/**
 	 * @return callable
 	 */
@@ -75,8 +97,6 @@ class Callback
 		}
 		return $callable;
 	}
-
-
 	/**
 	 * @return string
 	 */
@@ -94,10 +114,8 @@ class Callback
 			return $textual;
 		}
 	}
-
-
 	/**
-	 * @return Nette\Reflection\GlobalFunction|Nette\Reflection\Method
+	 * @return \ReflectionMethod|\ReflectionFunction
 	 */
 	public static function toReflection($callable)
 	{
@@ -106,7 +124,6 @@ class Callback
 		} elseif ($callable instanceof Nette\Callback) {
 			$callable = $callable->getNative();
 		}
-
 		$class = class_exists('Nette\Reflection\Method') ? 'Nette\Reflection\Method' : 'ReflectionMethod';
 		if (is_string($callable) && strpos($callable, '::')) {
 			return new $class($callable);
@@ -119,8 +136,6 @@ class Callback
 			return new $class($callable);
 		}
 	}
-
-
 	/**
 	 * @return bool
 	 */
@@ -128,9 +143,6 @@ class Callback
 	{
 		return is_array($callable) ? is_string($callable[0]) : is_string($callable);
 	}
-
-
-
 	/**
 	 * Unwraps closure created by self::closure(), used i.e. by ObjectMixin in PHP < 5.4
 	 * @internal
@@ -142,5 +154,4 @@ class Callback
 		$vars = $rm->getStaticVariables();
 		return isset($vars['_callable_']) ? $vars['_callable_'] : NULL;
 	}
-
 }
